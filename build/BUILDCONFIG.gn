@@ -86,7 +86,7 @@ default_compiler_configs = [
   "//build/config:cxx_config",
   "//build/config:runtime_library",
   "//build/config:thin_archive",
-  "//build/config:no_exceptions",
+  #"//build/config:no_exceptions",
   # "//build/config:no_rtti",
 ]
 
