@@ -1,5 +1,6 @@
 1. Run build/install-deps.sh to install depends.
 2. Run make to build
+3. Only suppurt build in linux, the Mac maybe suppurt in next.
 
 
 TODO:
