@@ -1,131 +1,130 @@
-#ifndef THREAD_POOL_H
-#define THREAD_POOL_H
+#ifndef __THREAD_POOL_H_
+#define __THREAD_POOL_H_ 1
 
 #include <sys/prctl.h>
 #include <condition_variable>
-#include <functional>
-#include <future>
-#include <memory>
 #include <mutex>
 #include <queue>
 #include <string>
 #include <thread>
 #include <vector>
 
-/**
- * From https://github.com/progschj/ThreadPool/blob/master/ThreadPool.h
- */
-
 namespace sparo {
 
 class ThreadPool {
  public:
-  ThreadPool(size_t, const std::string& thread_name);
+  ThreadPool(int32_t num, const std::string& name = "");
   ~ThreadPool();
 
-  void Quit();
+ public:
+  typedef void (*TaskFunction)(void*);
+  struct Task {
+    TaskFunction function;
+    void* argument;
+  };
 
-  template <class F, class... Args>
-  auto Enqueue(F&& f, Args&&... args)
-      -> std::future<typename std::invoke_result<F, Args...>::type>;
-
- private:
-  // launch all worker threads.
-  void Start();
-
-  // work thread main
-  void WorkerThreadMain();
+  void Start(void);
+  void Stop(void);
+  bool EnqueueTask(TaskFunction function, void* argument);
 
  private:
-  size_t threads_;
+  void WorkerMain(int32_t index);
+  bool PeekTask(Task& task);
+  void ScheduleWork(void) {
+    condition_.notify_one();
+  }
+
+  void ScheduleQuit(void) {
+    should_quit_ = true;
+    condition_.notify_all();
+  }
+
+ private:
+  int32_t thread_num_{4};
   std::string thread_name_;
-  // need to keep track of threads so we can join them
   std::vector<std::thread> workers_;
-
-  // the task queue
-  std::queue<std::function<void()>> tasks_;
-
-  // synchronization
-  std::mutex queue_mutex_;
-  std::condition_variable condition_;
+  std::queue<Task> tasks_;
   bool should_quit_{false};
+
+  std::mutex mutex_;
+  std::condition_variable condition_;
 };
 
-// the constructor just launches some amount of workers
-inline ThreadPool::ThreadPool(size_t threads, const std::string& thread_name)
-    : threads_(threads), thread_name_(thread_name) {
-  Start();
-}
+ThreadPool::ThreadPool(int32_t num, const std::string& name)
+    : thread_num_(num), thread_name_(name) {}
 
-inline void ThreadPool::Start() {
-  for (size_t i = 0; i < threads_; ++i) {
-    workers_.emplace_back([this, i] {
-      std::string name = (thread_name_.length() == 0) ? "worker" : thread_name_;
-      name = name + "." + std::to_string(i);
+void ThreadPool::Start(void) {
+  should_quit_ = false;
+  for (int32_t index = 0; index < thread_num_; ++index) {
+    workers_.emplace_back([this, index] {
+      std::string name = thread_name_.empty() ? "worker" : thread_name_;
+      name = name + "." + std::to_string(index);
       prctl(PR_SET_NAME, name.c_str());
 
-      WorkerThreadMain();
+      WorkerMain(index);
     });
   }
 }
 
-void ThreadPool::WorkerThreadMain() {
+void ThreadPool::WorkerMain(int32_t index) {
   for (;;) {
-    std::function<void()> task;
+     if (should_quit_) {
+      break;
+    }
+
     {
-      std::unique_lock<std::mutex> lock(queue_mutex_);
-      condition_.wait(lock, [this] { return should_quit_ || !tasks_.empty(); });
-      if (should_quit_ && tasks_.empty()) {
-        return;
-      }
-      task = std::move(tasks_.front());
-      tasks_.pop();
+      std::unique_lock<std::mutex> lock(mutex_);
+      condition_.wait_for(lock, std::chrono::milliseconds(200),
+          [this] { return should_quit_ || !tasks_.empty(); });
     }
-    task();
-  }
-}
 
-// add new work item to the pool
-template <class F, class... Args>
-auto ThreadPool::Enqueue(F&& f, Args&&... args)
-    -> std::future<typename std::invoke_result<F, Args...>::type> {
-  using return_type = typename std::invoke_result<F, Args...>::type;
+    Task task;
+    if (!PeekTask(task)) {
+      continue;
+    }
 
-  auto task = std::make_shared<std::packaged_task<return_type()>>(
-      std::bind(std::forward<F>(f), std::forward<Args>(args)...));
-
-  std::future<return_type> res = task->get_future();
-  {
-    std::unique_lock<std::mutex> lock(queue_mutex_);
     if (should_quit_) {
-      return res;
+      break;
     }
-    tasks_.emplace([task]() { (*task)(); });
+
+    task.function(task.argument);
   }
-  condition_.notify_one();
-  return res;
 }
 
-void inline ThreadPool::Quit() {
-  {
-    std::unique_lock<std::mutex> lock(queue_mutex_);
-    should_quit_ = true;
+bool ThreadPool::PeekTask(Task& task) {
+  std::unique_lock<std::mutex> lock(mutex_);
+  if (tasks_.empty()) {
+    return false;
   }
+  task = std::move(tasks_.front());
+  tasks_.pop();
+  return true;
+}
 
-  condition_.notify_all();
+bool ThreadPool::EnqueueTask(TaskFunction func, void* argument) {
+  {
+    std::unique_lock<std::mutex> lock(mutex_);
+    Task task = {.function = func, .argument = argument};
+    tasks_.push(task);
+  }
+  ScheduleWork();
+  return true;
+}
 
-  for (std::thread& worker : workers_) {
+void ThreadPool::Stop(void) {
+  should_quit_ = true;
+  ScheduleQuit();
+  for (auto& worker : workers_) {
     if (worker.joinable()) {
       worker.join();
     }
   }
 }
 
-// the destructor joins all threads
-inline ThreadPool::~ThreadPool() {
-  Quit();
+ThreadPool::~ThreadPool() {
+  Stop();
 }
 
 }  // namespace sparo
 
-#endif
+#endif  // __THREAD_POOL_H_

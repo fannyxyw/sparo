@@ -1,0 +1,17 @@
+# Copyright 2014 The Chromium Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+component("main") {
+  sources = [
+    "main.cc",
+    "json_test.cc",
+  ]
+
+  configs += [":my_lib_config"]
+}
+
+config("my_lib_config") {
+  include_dirs = ["//src/third-party/robin-map/include",
+    "//src/third-party/base"]
+}

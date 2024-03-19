@@ -1,1 +1,8 @@
-Clone From https://github.com/progschj/ThreadPool/blob/master/ThreadPool.h
+1. Run build/install-deps.sh to install depends.
+2. Run make to build
+
+
+TODO:
+1. singleton
+2. kfifo
+3. lazy

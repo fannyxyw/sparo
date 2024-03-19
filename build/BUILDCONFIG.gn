@@ -1,0 +1,232 @@
+# Copyright 2014 The Chromium Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+
+if (target_os == "") {
+  target_os = host_os
+}
+if (target_cpu == "") {
+  target_cpu = host_cpu
+}
+if (current_cpu == "") {
+  current_cpu = target_cpu
+}
+if (current_os == "") {
+  current_os = target_os
+}
+
+is_linux = host_os == "linux" && current_os == "linux" && target_os == "linux"
+is_mac = host_os == "mac" && current_os == "mac" && target_os == "mac"
+
+
+is_android = current_os == "android"
+is_chromeos = current_os == "chromeos"
+is_fuchsia = current_os == "fuchsia"
+is_ios = current_os == "ios"
+is_linux = current_os == "linux"
+is_mac = current_os == "mac"
+is_nacl = current_os == "nacl"
+is_ubsan = false
+is_win = current_os == "win" || current_os == "winuwp"
+
+is_apple = is_ios || is_mac
+is_posix = !is_win && !is_fuchsia
+
+declare_args() {
+  # Set to enable the official build level of optimization. This has nothing
+  # to do with branding, but enables an additional level of optimization above
+  # release (!is_debug). This might be better expressed as a tri-state
+  # (debug, release, official) but for historical reasons there are two
+  # separate flags.
+  #
+  # IMPORTANT NOTE: (!is_debug) is *not* sufficient to get satisfying
+  # performance. In particular, DCHECK()s are still enabled for release builds,
+  # which can halve overall performance, and do increase memory usage. Always
+  # set "is_official_build" to true for any build intended to ship to end-users.
+  is_official_build = false
+
+  is_component_build = false
+
+  # Set to true when compiling with the Clang compiler.
+  is_clang = true
+
+  is_debug = false
+
+  # This should not normally be set as a build argument.  It's here so that
+  # every toolchain can pass through the "global" value via toolchain_args().
+  host_toolchain = ""
+}
+
+default_compiler_configs = [
+  # "//build/config:feature_flags",
+  # "//build/config/compiler:afdo",
+  # "//build/config/compiler:afdo_optimize_size",
+  # "//build/config/compiler:cet_shadow_stack",
+  # "//build/config/compiler:chromium_code",
+  # "//build/config/compiler:compiler",
+  # "//build/config/compiler:compiler_arm_fpu",
+  # "//build/config/compiler:compiler_arm_thumb",
+  # "//build/config/compiler:default_include_dirs",
+  # "//build/config/compiler:default_init_stack_vars",
+  # "//build/config/compiler:default_optimization",
+  # "//build/config/compiler:default_stack_frames",
+  # "//build/config/compiler:default_symbols",
+  # "//build/config/compiler:export_dynamic",
+  # "//build/config/compiler:no_exceptions",
+  # "//build/config/compiler:no_rtti",
+  # "//build/config/compiler:no_unresolved_symbols",
+  # "//build/config/compiler:runtime_library",
+  # "//build/config/compiler:thin_archive",
+  # "//build/config/compiler:thinlto_optimize_default",
+  # "//build/config/compiler/pgo:default_pgo_flags",
+  # "//build/config/coverage:default_coverage",
+  # "//build/config/sanitizers:default_sanitizer_flags",
+  "//build:compiler_defaults",
+  "//build/config:cxx_config",
+  "//build/config:runtime_library",
+  "//build/config:thin_archive",
+  "//build/config:no_exceptions",
+  # "//build/config:no_rtti",
+]
+
+
+# All binary targets will get this list of configs by default.
+_shared_binary_target_configs = default_compiler_configs
+
+# Apply that default list to the binary target types.
+set_defaults("executable") {
+  configs = _shared_binary_target_configs
+
+  # Executables get this additional configuration.
+  configs += [ "//build:executable_ldconfig" ]
+}
+set_defaults("static_library") {
+  configs = _shared_binary_target_configs
+}
+set_defaults("shared_library") {
+  configs = _shared_binary_target_configs
+}
+set_defaults("source_set") {
+  configs = _shared_binary_target_configs
+}
+
+TESTONLY_AND_VISIBILITY = [
+  "testonly",
+  "visibility",
+]
+
+
+# Sets default dependencies for executable and shared_library targets.
+#
+# Variables
+#   no_default_deps: If true, no standard dependencies will be added.
+#       Targets that set this usually also want to remove
+#       "//build/config/compiler:runtime_library" from configs (to remove
+#       its subconfig "//build/config/c++:runtime_library").
+foreach(_target_type,
+        [
+          "executable",
+          "loadable_module",
+          "shared_library",
+        ]) {
+  template(_target_type) {
+    # Alias "target_name" because it is clobbered by forward_variables_from().
+    _target_name = target_name
+    target(_target_type, _target_name) {
+      forward_variables_from(invoker,
+                             "*",
+                             TESTONLY_AND_VISIBILITY + [ "no_default_deps" ])
+      forward_variables_from(invoker, TESTONLY_AND_VISIBILITY)
+      if (!defined(deps)) {
+        deps = []
+      }
+      if (!defined(invoker.no_default_deps) || !invoker.no_default_deps) {
+        # This pulls in one of:
+        # //build/config:executable_deps
+        # //build/config:loadable_module_deps
+        # //build/config:shared_library_deps
+        # (This explicit list is so that grepping for these configs finds where
+        # they are used.)
+        deps += [ "//build/config:${_target_type}_deps" ]
+      }
+    }
+  }
+}
+
+# ==============================================================================
+# COMPONENT SETUP
+# ==============================================================================
+
+# Defines a component, which equates to a shared_library when
+# is_component_build == true and a static_library otherwise.
+#
+# Use static libraries for the static build rather than source sets because
+# many of of our test binaries link many large dependencies but often don't
+# use large portions of them. The static libraries are much more efficient to
+# link in this situation since only the necessary object files are linked.
+#
+# The invoker can override the type of the target in the non-component-build
+# case by setting static_component_type to either "source_set" or
+# "static_library". If unset, the default will be used.
+
+
+# Sets default dependencies for executable and shared_library targets.
+#
+# Variables
+#   no_default_deps: If true, no standard dependencies will be added.
+#       Targets that set this usually also want to remove
+#       "//build/config/compiler:runtime_library" from configs (to remove
+#       its subconfig "//build/config/c++:runtime_library").
+
+template("component") {
+  if (is_component_build) {
+    _component_mode = "shared_library"
+
+    # Generate a unique output_name for a shared library if not set by invoker.
+    if (!defined(invoker.output_name)) {
+      _output_name = get_label_info(":$target_name", "label_no_toolchain")
+      _output_name =
+          string_replace(_output_name, "$target_name:$target_name", target_name)
+      _output_name = string_replace(_output_name, "//", "")
+      _output_name = string_replace(_output_name, "/", "_")
+      _output_name = string_replace(_output_name, ":", "_")
+    }
+  } else if (defined(invoker.static_component_type)) {
+    assert(invoker.static_component_type == "static_library" ||
+           invoker.static_component_type == "source_set")
+    _component_mode = invoker.static_component_type
+  } else if (!defined(invoker.sources) || invoker.sources == []) {
+    # When there are no sources defined, use a source set to avoid creating
+    # an empty static library (which generally don't work).
+    _component_mode = "source_set"
+  } else {
+    _component_mode = "static_library"
+  }
+
+  target(_component_mode, target_name) {
+    if (defined(_output_name)) {
+      output_name = _output_name
+    }
+    forward_variables_from(invoker, TESTONLY_AND_VISIBILITY)
+    forward_variables_from(invoker, "*", TESTONLY_AND_VISIBILITY)
+  }
+}
+
+default_shared_library_configs = default_compiler_configs
+
+# Component defaults
+# Set a variable since we also want to make this available
+# to mixed_component.gni
+if (is_component_build) {
+  default_component_configs = default_shared_library_configs
+} else {
+  default_component_configs = default_compiler_configs
+}
+
+set_defaults("component") {
+  configs = default_component_configs
+  sources = []
+}
+
+set_default_toolchain("//build/toolchain:clang")

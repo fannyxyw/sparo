@@ -1,21 +1,26 @@
-CXX=clang++
-CFLAGS= --std=c++17
+OUT_DIR=out/release
+gn_args=
+
+ifeq ($(libcxx), yes)
+	libcxx_flag=true
+else
+	libcxx_flag=false
+endif
+gn_args += use_custom_libcxx=$(libcxx_flag)
 
 ifeq ($(debug), yes)
-	CFLAGS += -ggdb3
+	debug_flag=true
 else
-	CFLAGS += -Os
+	debug_flag=false
+endif
+gn_args += is_debug=$(debug_flag)
+
+all:
+	gn gen $(OUT_DIR) --args="$(gn_args)"
+	ninja -C $(OUT_DIR)
+ifeq ($(strip), yes)
+	strip $(OUT_DIR)/sparo
 endif
 
-
-OUT_DIR=out
-.PHONY: main clean
-
-main:
-	mkdir -p $(OUT_DIR)
-	$(CXX) $(CFLAGS) src/main.cc -o $(OUT_DIR)/main.o
-	$(CXX) $(CFLAGS) src/example.cc -o $(OUT_DIR)/tp
-	./$(OUT_DIR)/tp
-
 clean:
-	rm -rf $(OUT_DIR)
+	rm -rf out
