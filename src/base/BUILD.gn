@@ -1,0 +1,19 @@
+# Copyright 2014 The Chromium Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+component("base") {
+  sources = [
+    "task/task_loop.cc",
+    "task/task_loop.h",
+    "command_line.cc",
+    "command_line.h",
+    "threading/platform_thread.cc",
+    "threading/platform_thread.h",
+    "strings/string_piece.cc",
+    "strings/string_piece.h",
+    "strings/string_view.cc",
+    "strings/string_view.h",
+    "thread_pool.h"
+  ]
+}

@@ -2,16 +2,74 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+executable("sparo") {
+  deps = [
+    ":main",
+  ]
+}
+
+executable("thread_pool_test") {
+  sources = [
+    "test/thread_pool_test.cc",
+  ]
+
+  deps = [
+    "//third-party:third-party",
+    "//base:base",
+  ]
+
+  configs += [":my_lib_config"]
+}
+
+executable("thread_pool_example") {
+  sources = [
+    "test/thread_pool_example.cc",
+  ]
+
+  deps = [
+    "//third-party:third-party",
+    "//base:base",
+  ]
+
+  configs += [":my_lib_config"]
+}
+
 component("main") {
   sources = [
-    "main.cc",
-    "json_test.cc",
+    "main/main.cc",
+    "test/json_test.cc",
+    "test/task_loop_test.cc",
+    "test/heap_test.cc",
+    "test/thread_test.cc",
+  ]
+
+  deps = [
+      "//third-party:third-party",
+      "//base:base",
   ]
 
   configs += [":my_lib_config"]
 }
 
 config("my_lib_config") {
-  include_dirs = ["//src/third-party/robin-map/include",
-    "//src/third-party/base"]
+  include_dirs = [
+    "//third-party",
+    "//third-party/base",
+    "//third-party/robin-map/include"]
 }
+
+# shared_library("hello_shared") {
+#   sources = [
+#     "hello_shared.cc",
+#     "hello_shared.h",
+#   ]
+
+#   defines = [ "HELLO_SHARED_IMPLEMENTATION" ]
+# }
+
+# static_library("hello_static") {
+#   sources = [
+#     "hello_static.cc",
+#     "hello_static.h",
+#   ]
+# }

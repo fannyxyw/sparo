@@ -17,7 +17,7 @@
 #    deps = [ ":bar" ]
 #  }
 
-import("//build_overrides/build.gni")
+#import("//build_overrides/build.gni")
 
 template("absl_source_set") {
   source_set(target_name) {

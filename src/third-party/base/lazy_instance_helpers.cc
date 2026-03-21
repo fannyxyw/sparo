@@ -60,7 +60,7 @@ void CompleteLazyInstance(std::atomic<uintptr_t>& state,
 
   // Make sure that the lazily instantiated object will get destroyed at exit.
   // if (new_instance && destructor)
-    // AtExitManager::RegisterCallback(destructor, destructor_arg);
+  //AtExitManager::RegisterCallback(destructor, destructor_arg);
 }
 
 }  // namespace internal

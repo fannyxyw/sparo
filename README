@@ -1,15 +1,9 @@
 1. Run build/install-deps.sh to install depends.
 2. Run make to build
-3. Only suppurt build in linux, the Mac maybe suppurt in next.
-
-Build arguments:
-  debug=yes build for debug
-  libcxx=yes use libc++ as stander library.
-So you can run:
-  make debug=yes libcxx=yes
 
 
 TODO:
 1. singleton
 2. kfifo
 3. lazy
+4. shared memory+socket

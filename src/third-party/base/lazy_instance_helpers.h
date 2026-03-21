@@ -59,7 +59,7 @@ Type* GetOrCreateLazyPointer(std::atomic<uintptr_t>& state,
                              void* creator_arg,
                              void (*destructor)(void*),
                              void* destructor_arg) {
-  DCHECK(creator_func);
+  // DCHECK(creator_func);
 
   // If any bit in the created mask is true, the instance has already been
   // fully constructed.

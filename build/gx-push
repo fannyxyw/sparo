@@ -1,0 +1,6 @@
+#!/bin/bash -e
+
+CURRENT_BRANCH=`git symbolic-ref --short -q HEAD`
+CURRENT_BRANCH=`echo $CURRENT_BRANCH`
+# git push ssh://shidefan@gerrit.aixin-chip.com:29418/app HEAD:refs/for/$CURRENT_BRANCH
+git push origin HEAD:refs/for/$CURRENT_BRANCH
