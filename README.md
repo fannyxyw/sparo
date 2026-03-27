@@ -4,10 +4,9 @@ A C++ foundational library for system-level development.
 
 ## Supported Platforms
 
-| OS | Architecture | Compiler | Standard Library | Status |
-|----|-------------|----------|-----------------|--------|
-| Ubuntu 22.04 | ARM64 (AArch64) | clang++ | libstdc++ / libc++ | Verified |
-| Ubuntu 22.04 | ARM64 (AArch64) | g++ | libstdc++ | Verified |
+| OS | Architecture | Compiler | Version | Standard Library | Status |
+|----|-------------|----------|-------|-----------------|--------|
+| Ubuntu 24.04 | ARM64 (AArch64) | clang++ | ≥ 21.0 | libstdc++ / libc++ | Verified |
 
 ## Build
 
@@ -27,10 +26,11 @@ Two toolchains are defined in `src/build/toolchain/BUILD.gn`:
 | Toolchain | Compiler | Linker | GN arg |
 |-----------|----------|--------|--------|
 | `clang` (default) | `clang` / `clang++` | `clang++` | *(default)* |
-| `gcc` | `gcc` / `g++` | `g++` | `--args="..."` with custom toolchain |
 
 The default toolchain is `clang` (set by `set_default_toolchain("//build/toolchain:clang")`).
 To switch to GCC, pass the toolchain override via GN args or modify `BUILDCONFIG.gn`.
+
+**Clang version requirement**: Clang **21.0 or higher** is required for full C++17 support and compatibility with the project's codebase.
 
 ### Standard Library
 
