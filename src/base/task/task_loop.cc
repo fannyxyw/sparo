@@ -21,8 +21,6 @@ void TaskLoop::PostTask(const Task& task) {
     std::lock_guard lock(incoming_task_mutex_);
     incoming_task_queue_.push_back(task);
   }
-  int aa = 0;
-  likely(aa);
   work_cv_.notify_one();
 }
 

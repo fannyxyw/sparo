@@ -31,7 +31,7 @@ lld_path = ""
 if (!is_clang) {
   declare_args() {
     # This allows overriding the location of lld.
-    lld_path = rebase_path("$clang_base_path/bin", root_build_dir)
+    lld_path = ""
   }
 } else {
   # clang looks for lld next to it, no need for -B.
@@ -2216,9 +2216,10 @@ config("no_incompatible_pointer_warnings") {
     cflags += [ "-Wno-incompatible-pointer-types" ]
   } else if (current_cpu == "mipsel" || current_cpu == "mips64el") {
     cflags += [ "-w" ]
-  } else if (is_chromeos_ash && current_cpu == "arm") {
-    cflags += [ "-w" ]
   }
+  # else if (is_chromeos_ash && current_cpu == "arm") {
+  #   cflags += [ "-w" ]
+  # }
 }
 
 # Optimization -----------------------------------------------------------------

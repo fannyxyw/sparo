@@ -2,6 +2,10 @@ OUT_DIR ?= out/release
 gn_args =
 debug_flag ?= true
 
+# Compiler selection: support 'auto', 'clang', or 'gcc'
+# Default is 'auto' which prefers clang if available
+COMPILER ?= auto
+
 ifeq ($(libcxx), y)
 	libcxx_flag=true
 else
@@ -16,6 +20,22 @@ else
 	OUT_DIR := out/debug
 endif
 gn_args += is_debug=$(debug_flag)
+
+# Dynamic compiler selection
+ifeq ($(COMPILER), auto)
+	# Auto-detect: prefer clang if available
+	ifneq ($(shell which clang++ >/dev/null 2>&1 && echo 1),)
+		gn_args += is_clang=true
+	else
+		gn_args += is_clang=false
+	endif
+else ifeq ($(COMPILER), clang)
+	gn_args += is_clang=true
+else ifeq ($(COMPILER), gcc)
+	gn_args += is_clang=false
+else
+	$(error Unknown compiler: $(COMPILER). Use 'auto', 'clang', or 'gcc')
+endif
 
 all:
 	gn gen $(OUT_DIR) --args="$(gn_args)" --export-compile-commands

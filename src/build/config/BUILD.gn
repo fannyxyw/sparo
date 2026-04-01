@@ -658,14 +658,14 @@ config("cxx_config") {
   # present. On Android this increases binary size due to more thinks for long
   # jumps. Turn it off by default and enable selectively for targets where it's
   # beneficial.
-  enable_call_graph_profile_sort = true
-  if (use_lld && !enable_call_graph_profile_sort) {
-    if (is_win) {
-      ldflags += [ "/call-graph-profile-sort:no" ]
-    } else {
-      ldflags += [ "-Wl,--no-call-graph-profile-sort" ]
-    }
-  }
+  # enable_call_graph_profile_sort = true
+  # if (use_lld && !enable_call_graph_profile_sort) {
+  #   if (is_win) {
+  #     ldflags += [ "/call-graph-profile-sort:no" ]
+  #   } else {
+  #     ldflags += [ "-Wl,--no-call-graph-profile-sort" ]
+  #   }
+  # }
 
   # This flag enforces that member pointer base types are complete. It helps
   # prevent us from running into problems in the Microsoft C++ ABI (see

@@ -131,5 +131,16 @@
     "--ranking-model=decision_forest",
     "-j=12"
   ],
-  "clangd.onConfigChanged": "restart"
+  "clangd.onConfigChanged": "restart",
+  // GN 文件路径解析支持
+  "files.associations": {
+    "*.gn": "python",
+    "*.gni": "python"
+  },
+  // GN 路径跳转配置（使用路径别名）
+  "path-intellisense.mappings": {
+    "//build": "${workspaceFolder}/src/build",
+    "//base": "${workspaceFolder}/src/base",
+    "//third-party": "${workspaceFolder}/src/third-party"
+  }
 }
