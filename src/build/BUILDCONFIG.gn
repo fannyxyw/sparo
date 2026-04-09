@@ -51,8 +51,9 @@ declare_args() {
   is_component_build = false
 
   # Set to true when compiling with the Clang compiler.
-  # Auto-detect based on default toolchain
-  is_clang = false  # Default to clang
+  # This will be automatically set by the toolchain's toolchain_args().
+  # If not explicitly set by args.gn or command line, defaults to true.
+  is_clang = true
 
   is_debug = true
 
@@ -232,10 +233,9 @@ set_defaults("component") {
   sources = []
 }
 
+# Set default toolchain based on is_clang
 if (is_clang) {
   set_default_toolchain("//build/toolchain:clang")
-  print("Using clang compiler")
 } else {
   set_default_toolchain("//build/toolchain:gcc")
-  print("Using gcc compiler")
 }

@@ -113,12 +113,13 @@
     "source_location": "cpp"
   },
   "git.ignoreLimitWarning": true,
-  "clangd.arguments": [    "--compile-commands-dir=${workspaceFolder}",
+  // clangd 配置 - 支持代码跳转和智能提示
+  "clangd.arguments": [
+    "--compile-commands-dir=${workspaceFolder}",
     "--all-scopes-completion",
     "--background-index",
     "--clang-tidy",
     "--completion-parse=auto",
-    // "--compile-commands-dir=${workspaceFolder}/.vscode",
     "--completion-style=detailed",
     "--limit-results=100",
     "--enable-config",
@@ -129,7 +130,9 @@
     "--pch-storage=memory",
     "--pretty",
     "--ranking-model=decision_forest",
-    "-j=12"
+    "-j=12",
+    // 启用交叉引用以支持跳转
+    "--cross-file-references"
   ],
   "clangd.onConfigChanged": "restart",
   // GN 文件路径解析支持

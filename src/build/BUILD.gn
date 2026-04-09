@@ -14,6 +14,8 @@ config("compiler_defaults") {
       ]
     }
   }
+
+  cflags += [ "-fdiagnostics-absolute-paths" ]
 }
 
 executable_and_shared_library_configs_ = []
