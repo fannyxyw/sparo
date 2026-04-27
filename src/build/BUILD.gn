@@ -4,17 +4,17 @@
 
 config("compiler_defaults") {
   if (current_os == "linux") {
+    if (is_debug) {
+      cflags = [
+        "-ggdb3", "-O0"
+      ]
+    } else {
     cflags = [
       "-O2"
     ]
-
-    if (is_debug) {
-      cflags += [
-        "-ggdb3"
-      ]
     }
   }
-
+  # output absolute path of source file in diagnostic
   cflags += [ "-fdiagnostics-absolute-paths" ]
 }
 

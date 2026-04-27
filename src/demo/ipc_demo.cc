@@ -91,7 +91,6 @@ ssize_t SocketRecvmsg(int socket, void *buf, size_t num_bytes,
   ssize_t result =
       HANDLE_EINTR(recvmsg(socket, &msg, block ? 0 : MSG_DONTWAIT));
   if (result < 0) {
-
     printf("sdfasd:read:errcoded:%d\n", errno);
     return result;
   }
@@ -141,20 +140,9 @@ int CreateSealedMemFD(size_t size) {
   return fd;
 }
 
-#ifndef EFD_ZERO_ON_WAKE
-#define EFD_ZERO_ON_WAKE O_NOFOLLOW
-#endif
-
 static int CreateWriteNotifier() {
   static constexpr int kEfdFlags = EFD_CLOEXEC | EFD_NONBLOCK;
-  static bool zero_on_wake_supported = []() -> bool {
-    int fd = syscall(__NR_eventfd2, 0, kEfdFlags | EFD_ZERO_ON_WAKE);
-    return fd > 0;
-  }();
-
-  bool use_zero_on_wake = zero_on_wake_supported;
-  int extra_flags = use_zero_on_wake ? EFD_ZERO_ON_WAKE : 0;
-  int fd = syscall(__NR_eventfd2, 0, kEfdFlags | extra_flags);
+  int fd = syscall(__NR_eventfd2, 0, kEfdFlags);
   if (fd < 0) {
     return -1;
   }
@@ -183,7 +171,7 @@ int CloseEPFD() {
   return 0;
 }
 
-int WaitReadable(int event_fd) {
+int WaitReadable(int event_fd, int timeout_ms = -1) {
   if (g_epfd == 0) {
     g_epfd = epoll_create(1);
     if (g_epfd == -1) {
@@ -200,27 +188,28 @@ int WaitReadable(int event_fd) {
     return 8;
   }
 
-  /*****************处理异步请求事件********/
-  int i = 0;
-  int event_num = 1;
-  while (i < event_num) {
-    int64_t finished_aio = 0;
-    if (epoll_wait(g_epfd, &epevent, 1, -1) != 1) {
-      perror("epoll_wait");
+  int wait_result = epoll_wait(g_epfd, &epevent, 1, timeout_ms);
+  if (wait_result == 0) {
+    if (epoll_ctl(g_epfd, EPOLL_CTL_DEL, event_fd, &epevent)) {
       CloseEPFD();
-      return 9;
+      perror("epoll_ctl");
+      return 8;
     }
-
-    Clear(event_fd);
-    break;
+    return 1;  // timeout / no event
   }
+  if (wait_result != 1) {
+    perror("epoll_wait");
+    CloseEPFD();
+    return 9;
+  }
+
+  Clear(event_fd);
 
   if (epoll_ctl(g_epfd, EPOLL_CTL_DEL, event_fd, &epevent)) {
     CloseEPFD();
     perror("epoll_ctl");
     return 8;
   }
-  // printf("WaitReadable finished on main process ...\n");
   return 0;
 }
 
@@ -297,33 +286,64 @@ int main(int argc, char *argv[]) {
     printf("Child client_fd:%d, process stared: %d, ppid: %d !\n", client_fd, getpid(), getppid());
     char channel_buffer[kChannelBufferSize];
 
-    std::vector<int> memfd(2);
+    std::vector<int> memfd(4); // 2 memfd and 2 eventfd
 
     ssize_t read_result = SocketRecvmsg(host_fd, channel_buffer, sizeof(channel_buffer), &memfd, true);
-    printf("Read fd: %d, read_result:%ld\n", memfd[0], read_result);
+    printf("Read fd: %d %d %d %d, read_result:%ld\n", memfd[0], memfd[1], memfd[2], memfd[3], read_result);
 
-  int ppid = 0;
+    // memfd[0]: child write, parent read
+    // memfd[1]: parent write, child read
+    // memfd[2]: child notify parent
+    // memfd[3]: parent notify child
+
+    std::unique_ptr<SharedBuffer> child_write_buffer =
+        SharedBuffer::Create(memfd[0], kChannelBufferSize);
+    // child_write_buffer->Initialize(); // Already initialized by parent
+
+    std::unique_ptr<SharedBuffer> parent_write_buffer =
+        SharedBuffer::Create(memfd[1], kChannelBufferSize);
+    // parent_write_buffer->Initialize(); // Already initialized by parent
+
+    int child_notify_fd = memfd[2];
+    int parent_notify_fd = memfd[3];
+
     int kk = 0;
-  std::unique_ptr<SharedBuffer> buffer =
-      SharedBuffer::Create(memfd[0], kChannelBufferSize);
-  buffer->Initialize();
-  for (;;) {
-    ++kk;
-    sleep(1);
-    if (kk % 2 == 0) {
-      ppid = getppid();
-      if (ppid == 1) {
-        printf("Parent process has exited.\n");
-        break;
+    for (;;) {
+      ++kk;
+      // usleep(500000); // 0.5 seconds
+
+      // Child writes to child_write_buffer and notifies parent
+      if (kk % 2 == 0) {
+        int ppid = getppid();
+        if (ppid == 1) {
+          printf("Parent process has exited.\n");
+          break;
+        }
+        auto err_code = child_write_buffer->TryWrite(&kk, sizeof(kk));
+        if (err_code != SharedBuffer::Error::kSuccess) {
+          printf("Child write failed, error code: %d\n", static_cast<int>(err_code));
+        } else {
+          Notify(child_notify_fd);
+          printf("Child wrote: %d\n", kk);
+        }
       }
-      auto err_code = buffer->TryWrite(&kk, sizeof(kk));
-      if (err_code != SharedBuffer::Error::kSuccess) {
-        printf("Write failed, error code: %d, pid: %d\n", err_code, getpid());
-      } else {
-        Notify(memfd[1]);
+
+      // Child checks for parent notification and reads from parent_write_buffer
+      if (WaitReadable(parent_notify_fd) == 0) {
+        if (parent_write_buffer->TryLockForReading()) {
+          std::vector<uint8_t> read_buf;
+          size_t len = parent_write_buffer->usable_len();
+          read_buf.resize(len);
+          uint32_t bytes_read = 0;
+          auto read_res = parent_write_buffer->TryReadLocked(read_buf.data(),
+                                                             read_buf.size(), &bytes_read);
+          parent_write_buffer->UnlockForReading();
+          if (read_res == SharedBuffer::Error::kSuccess && bytes_read > 0) {
+            printf("Child read from parent: %d\n", *reinterpret_cast<int*>(read_buf.data()));
+          }
+        }
       }
     }
-  }
 
     return 0;
   }
@@ -344,45 +364,70 @@ int main(int argc, char *argv[]) {
                             std::to_string(socket_pair[1]));
   LaunchProcess(command_line.GetArgs());
 
-  std::vector<int> memfd(2);
+  std::vector<int> memfd(4);
   int index = 0;
-  memfd[index++] = CreateSealedMemFD(128);
-  memfd[index++] = CreateWriteNotifier();
+  memfd[index++] = CreateSealedMemFD(128); // child write, parent read
+  memfd[index++] = CreateSealedMemFD(128); // parent write, child read
+  memfd[index++] = CreateWriteNotifier();  // child notify parent
+  if (memfd[index-1] < 0) {
+    printf("Failed to create eventfd for child notification\n");
+    return EXIT_FAILURE;
+  }
+  memfd[index++] = CreateWriteNotifier();  // parent notify child
+  if (memfd[index-1] < 0) {
+    printf("Failed to create eventfd for parent notification\n");
+    return EXIT_FAILURE;
+  }
   int client_fd = socket_pair[0];
   char channel_buffer[kChannelBufferSize] = {0};
   iovec iov = {channel_buffer, sizeof(channel_buffer)};
   SendmsgWithHandles(client_fd, &iov, 1, memfd);
-  printf("Write fd: %d\n", memfd[0]);
+  printf("Write fd: %d %d %d %d\n", memfd[0], memfd[1], memfd[2], memfd[3]);
 
-  int kk = 0;
-  std::unique_ptr<SharedBuffer> buffer =
+  std::unique_ptr<SharedBuffer> child_write_buffer =
       SharedBuffer::Create(memfd[0], kChannelBufferSize);
-  buffer->Initialize();
-  for (;;) {
-    ++kk;
-    sleep(1);
-    if (1) {
-      WaitReadable(memfd[1]);
-      if (buffer->TryLockForReading()) {
-        std::vector<uint8_t> read_buf;
-        size_t len = buffer->usable_len();
-        read_buf.resize(len);
-        uint32_t bytes_read = 0;
-        do {
-          auto read_res = buffer->TryReadLocked(read_buf.data(),
-                                                read_buf.size(), &bytes_read);
-          if (read_res == SharedBuffer::Error::kControlCorruption) {
-            // TODO: OnError
-            printf("Parent read value: %d, size: %d\n", read_buf[0],
-                   bytes_read);
-            break;
-          }
-        } while (0);
+  child_write_buffer->Initialize();
 
-        buffer->UnlockForReading();
-        if (bytes_read > 0) {
-          printf("Parent read value: %d, size: %d\n", read_buf[0], bytes_read);
-        }
+  std::unique_ptr<SharedBuffer> parent_write_buffer =
+      SharedBuffer::Create(memfd[1], kChannelBufferSize);
+  parent_write_buffer->Initialize();
+
+  int child_notify_fd = memfd[2];
+  int parent_notify_fd = memfd[3];
+
+  int pp = 100;
+  for (;;) {
+    // usleep(500000); // 0.5 seconds
+
+    // Parent writes to parent_write_buffer and notifies child.
+    if (pp % 3 == 0 || pp == 100) {
+      auto err_code = parent_write_buffer->TryWrite(&pp, sizeof(pp));
+      if (err_code != SharedBuffer::Error::kSuccess) {
+        printf("Parent write failed, error code: %d\n", static_cast<int>(err_code));
+      } else {
+        Notify(parent_notify_fd);
+        printf("Parent wrote: %d\n", pp);
+      }
+    }
+    pp++;
+
+    // Parent checks for child notification and reads from child_write_buffer.
+    // Use a non-blocking wait here so the parent can continue to produce
+    // messages even if the child is currently waiting for the next parent
+    // notification.
+    while (WaitReadable(child_notify_fd, 0) == 0) {
+      if (!child_write_buffer->TryLockForReading())
+        break;
+
+      std::vector<uint8_t> read_buf;
+      size_t len = child_write_buffer->usable_len();
+      read_buf.resize(len);
+      uint32_t bytes_read = 0;
+      auto read_res = child_write_buffer->TryReadLocked(read_buf.data(),
+                                                        read_buf.size(), &bytes_read);
+      child_write_buffer->UnlockForReading();
+      if (read_res == SharedBuffer::Error::kSuccess && bytes_read > 0) {
+        printf("Parent read from child: %d\n", *reinterpret_cast<int*>(read_buf.data()));
       }
     }
   }

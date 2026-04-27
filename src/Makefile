@@ -12,12 +12,14 @@ else
 	libcxx_flag=false
 endif
 gn_args += use_custom_libcxx=$(libcxx_flag)
+gn_args += strip_absolute_paths_from_debug_symbols=false
 
 ifeq ($(debug), n)
 	OUT_DIR := out/release
 else
 	debug_flag=true
 	OUT_DIR := out/debug
+# 	gn_args += symbol_level=2
 endif
 gn_args += is_debug=$(debug_flag)
 

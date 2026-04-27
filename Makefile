@@ -7,7 +7,7 @@ strip ?= n
 OUT_DIR = $(CURDIR)
 
 ifeq ($(debug), y)
-CXXFLAGS += -g -O0
+CXXFLAGS += -ggdb3 -O0
 else
 CXXFLAGS += -O2
 endif

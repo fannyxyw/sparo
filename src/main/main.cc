@@ -158,8 +158,8 @@ int main(int argc, char* argv[]) {
   }
 
   FooClass::GetInstance()->foo();
-  auto ii = std::atoi(argv[1]);
-  printf("%d,,===%d \n", FACDFSMem(ii), ii);
+  // auto ii = std::atoi(argv[1]);
+  // printf("%d,,===%d \n", FACDFSMem(ii), ii);
   TestMinHeap();
 
   // test for robin_map

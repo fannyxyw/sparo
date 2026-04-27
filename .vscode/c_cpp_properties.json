@@ -7,11 +7,6 @@
                 "${workspaceFolder}/src/**",
                 "${workspaceFolder}/src/third-party/**",
                 "${workspaceFolder}/src/third-party/abseil-cpp"
-            ],
-            "browse": {
-            "path": [
-            "${workspaceFolder}",
-            "${workspaceFolder}/src/out/debug"
             ]
       },
             "defines": [],
