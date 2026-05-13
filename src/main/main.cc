@@ -1,5 +1,7 @@
 
 #include <assert.h>
+#include <cstring>
+#include <signal.h>
 #include <optional>
 #include <unistd.h>
 #include <chrono>
@@ -144,18 +146,61 @@ int FACDFSMem(int n) {
   return dfsMem(n, mem);
 }
 
+
+// Setup signal-handling state: resanitize most signals, ignore SIGPIPE.
+void SetupSignalHandlers() {
+  // Always ignore SIGPIPE.  We check the return value of write().
+  signal(SIGPIPE, SIG_IGN);
+
+  // Sanitise our signal handling state. Signals that were ignored by our
+  // parent will also be ignored by us. We also inherit our parent's sigmask.
+  sigset_t empty_signal_set;
+  sigemptyset(&empty_signal_set);
+  sigprocmask(SIG_SETMASK, &empty_signal_set, nullptr);
+
+  struct sigaction sigact = {};
+  sigact.sa_handler = SIG_DFL;
+  static const int signals_to_reset[] = {SIGHUP,  SIGINT,  SIGQUIT, SIGILL,
+                                         SIGABRT, SIGFPE,  SIGSEGV, SIGALRM,
+                                         SIGTERM, SIGCHLD, SIGBUS,  SIGTRAP};
+  for (int signal_to_reset : signals_to_reset)
+    sigaction(signal_to_reset, &sigact, nullptr);
+}
+
+
+void PrepareForProcess() {
+    // Set C library locale to make sure CommandLine can parse
+    // argument values in the correct encoding and to make sure
+    // generated file names (think downloads) are in the file system's
+    // encoding.
+    setlocale(LC_ALL, "");
+    // For numbers we never want the C library's locale sensitive
+    // conversion from number to string because the only thing it
+    // changes is the decimal separator which is not good enough for
+    // the UI and can be harmful elsewhere. User interface number
+    // conversions need to go through ICU. Other conversions need to
+    // be locale insensitive so we force the number locale back to the
+    // default, "C", locale.
+    setlocale(LC_NUMERIC, "C");
+
+    SetupSignalHandlers();
+}
+
 int main(int argc, char* argv[]) {
   base::circular_deque<int> deque;
   deque.push_back(1);
   deque.push_back(1);
   deque.push_back(1);
   deque.push_back(1);
+
   base::CommandLine cmd(argc, argv);
   if (cmd.HasSwitch("version")) {
     LOGD(cmd.GetSwitchValueASCII("version").data());
   } else {
     LOGD("version");
   }
+
+  PrepareForProcess();
 
   FooClass::GetInstance()->foo();
   // auto ii = std::atoi(argv[1]);
