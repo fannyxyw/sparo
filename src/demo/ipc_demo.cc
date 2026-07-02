@@ -109,8 +109,7 @@ ssize_t SocketRecvmsg(int socket, void *buf, size_t num_bytes,
       size_t num_fds = payload_length / sizeof(int);
       const int *fds = reinterpret_cast<int *>(CMSG_DATA(cmsg));
       for (size_t i = 0; i < num_fds; ++i) {
-        int fd(fds[i]);
-        descriptors->emplace_back(std::move(fd));
+        descriptors->push_back(fds[i]);
       }
     }
   }

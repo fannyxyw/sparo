@@ -37,6 +37,7 @@ executable("thread_pool_example") {
 component("main") {
   sources = [
     "main/main.cc",
+    "test/algo_test.cc",
     "test/json_test.cc",
     "test/task_loop_test.cc",
     "test/heap_test.cc",

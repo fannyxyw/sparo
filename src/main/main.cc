@@ -1,12 +1,14 @@
 
 #include <assert.h>
 #include <cstring>
+#include <ostream>
 #include <signal.h>
 #include <optional>
 #include <unistd.h>
 #include <chrono>
 #include <iostream>
 #include <mutex>
+#include <vector>
 
 #include "base/command_line.h"
 #include "base/logging.h"
@@ -17,6 +19,7 @@
 #include "base/thread_pool.h"
 #include "tsl/robin_map.h"
 #include "base/containers/flat_map.h"
+#include "test/algo_test.h"
 
 // Round up |size| to a multiple of alignment, which must be a power of two.
 template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
@@ -253,9 +256,9 @@ int main(int argc, char* argv[]) {
   }
 
   fprintf(stderr, "Added %d tasks\n", tasks);
-  while ((tasks / 2) > (done + fail)) {
-    usleep(10000);
-  }
+  // while ((tasks / 2) > (done + fail)) {
+  //   usleep(10000);
+  // }
   assert(threadpool_destroy(pool, 0) == 0);
   fprintf(stderr, "Did %d tasks\n", done);
 
@@ -272,6 +275,14 @@ int main(int argc, char* argv[]) {
   fprintf(stderr, "c++ 11 done %d tasks\n", done - last_done);
 
   RunTaskLoopTest();
+
+  std::vector<int> numbs = {0, 8, 47, 10, 23, 5};
+  BubbleSort(numbs);
+  for (const auto item: numbs) {
+    std::cout << item << " ";
+  }
+
+  std::cout << std::endl;
 
   return 0;
 }
